@@ -1,18 +1,35 @@
 const { test, expect } = require('@playwright/test');
 
-test('Thucydides contabulate loads and returns results for a Greek query', async ({ page }) => {
+test('Thucydides contabulate defaults to books sorted by location', async ({ page }) => {
   await page.goto('/docs/');
   await page.waitForFunction(() => window.__contabulateReady === true);
 
   await expect(page).toHaveTitle(/Thucydides/);
   await expect(page.locator('h1')).toContainText('Thucydides');
-  await page.locator('#gran').selectOption('act');
+  await expect(page.locator('#gran')).toHaveValue('act');
+  await expect(page.locator('#results thead')).toContainText('Book');
+  await expect(page.locator('#results tbody tr').first()).toContainText('Βιβλίον α');
+});
+
+test('chapter granularity sits between book and passage', async ({ page }) => {
+  await page.goto('/docs/');
+  await page.waitForFunction(() => window.__contabulateReady === true);
+
+  await page.locator('#gran').selectOption('chapter');
+  await expect(page.locator('#results thead')).toContainText('Chapter');
+  await expect(page.locator('#results tbody tr').first()).toContainText('Βιβλίον α');
 
   await page.locator('#q').fill('πόλεμον');
   await page.locator('#addColumnBtn').click();
+  await expect(page.locator('#results thead')).toContainText('πόλεμον');
+});
 
-  await expect(page.locator('#results thead')).toContainText('Work');
-  await expect(page.locator('#results thead')).toContainText('Book');
-  expect(await page.locator('#results tbody tr').count()).toBeGreaterThan(0);
-  await expect(page.locator('#results tbody tr').first()).toContainText('History of the Peloponnesian War');
+test('passage view shows passage text without a search term', async ({ page }) => {
+  await page.goto('/docs/');
+  await page.waitForFunction(() => window.__contabulateReady === true);
+
+  await page.locator('#gran').selectOption('line');
+  await expect(page.locator('#results thead')).toContainText('Section');
+  await expect(page.locator('#results thead')).toContainText('Passage');
+  await expect(page.locator('#results tbody tr').first()).toContainText('Θουκυδίδης Ἀθηναῖος');
 });

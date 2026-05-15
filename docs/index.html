@@ -41,7 +41,8 @@
         <select id="gran" class="control-select">
           <option value="play">Work</option>
           <option value="act" selected>Book</option>
-          <option value="line">Passage Text</option>
+          <option value="chapter">Chapter</option>
+          <option value="line">Passage</option>
         </select>
         <span class="label-strong">matching</span>
         <select id="matchMode" class="control-select">
@@ -499,15 +500,15 @@
     return true;
   }
   // Sort state defaults (declare before deep-link logic uses them)
-  let sortKey = null, sortDir = 'desc';
+  let sortKey = 'location', sortDir = 'asc';
   let linesTabController = null;
   let segmentsColumnOrder = [];
   let segmentsColumnDefs = [];
   // Column filters maps (declare early for deep-link)
-  // Scope segments filters by current granularity (play/genre/act/scene/line/character)
+  // Scope segments filters by current granularity (play/genre/act/chapter/scene/line/character)
   const segmentsFiltersByGran = new Map(); // gran -> Map(columnKey -> filter)
   function getSegmentsFiltersMap() {
-    const g = (typeof gran !== 'undefined' && gran && gran.value) ? gran.value : 'scene';
+    const g = (typeof gran !== 'undefined' && gran && gran.value) ? gran.value : 'act';
     if (!segmentsFiltersByGran.has(g)) segmentsFiltersByGran.set(g, new Map());
     return segmentsFiltersByGran.get(g);
   }
@@ -725,10 +726,14 @@
 
   // Precompute act/play totals (must be before applyStateFromURL which may call doSearch→denomFor)
   const actTotals = new Map();
+  const chapterTotals = new Map();
   const playTotals = new Map();
   for (const r of chunks) {
     const k = `${r.play_id}:${r.act}`;
+    const chapter = r.chapter || Math.floor((r.scene || 0) / 1000);
+    const ck = `${r.play_id}:${r.act}:${chapter}`;
     actTotals.set(k, (actTotals.get(k)||0) + (r.total_words||0));
+    chapterTotals.set(ck, (chapterTotals.get(ck)||0) + (r.total_words||0));
     playTotals.set(r.play_id, (playTotals.get(r.play_id)||0) + (r.total_words||0));
   }
 
@@ -1099,6 +1104,7 @@
   }
 
   function applyPreferredTermSort(termCols, preferredTermIndex) {
+    if (sortKey) return false;
     if (!Number.isInteger(preferredTermIndex) || preferredTermIndex < 0) return false;
     const preferredPrefix = `t${preferredTermIndex}_`;
     const preferredKey = `t${preferredTermIndex}_count`;
@@ -1113,6 +1119,7 @@
   function denomFor(n, levelKey, meta){
     const tw = (levelKey==='scene') ? (meta.total_words||0)
                : (levelKey==='act') ? (actTotals.get(`${meta.play_id}:${meta.act}`)||0)
+               : (levelKey==='chapter') ? (chapterTotals.get(`${meta.play_id}:${meta.act}:${meta.chapter}`)||0)
                : (levelKey==='play') ? (playTotals.get(meta.play_id)||0)
                : (levelKey==='genre') ? ((meta && meta.total_words) || 0)
                : (levelKey==='character') ? (meta.total_words_spoken||0) : 0;
@@ -1161,6 +1168,14 @@
     }
     function getChapterLocation(play, act) {
       return `${getBookLocation(play)}.${padLocationPart(act)}`;
+    }
+    function getSectionParts(meta) {
+      const chapter = meta.chapter || Math.floor((meta.scene || 0) / 1000);
+      const section = meta.section || ((meta.scene || 0) % 1000);
+      return { chapter, section };
+    }
+    function getSectionLocation(play, act, chapter, section) {
+      return `${getChapterLocation(play, act)}.${padLocationPart(chapter)}.${padLocationPart(section)}`;
     }
     function getVerseLocation(play, act, scene) {
       return `${getChapterLocation(play, act)}.${padLocationPart(scene)}`;
@@ -1240,7 +1255,8 @@
             const totalWords = m.total_words || 0;
             const ngramCount = getRowNgramCount(totalWords);
             const playMeta = playsById.get(m.play_id) || { play_id: m.play_id, abbr: m.play_abbr, location: m.location };
-            return { id: m.canonical_id, location: m.location || getVerseLocation(playMeta, m.act, m.scene), play_title: m.play_title, genre:m.genre, play_id:m.play_id, act:m.act, scene:m.scene, total_words:totalWords, ngram_count:ngramCount, scene_id: m.scene_id, act_label: m.act_label, scene_label: m.scene_label };
+            const parts = getSectionParts(m);
+            return { id: m.canonical_id, location: m.location || getSectionLocation(playMeta, m.act, parts.chapter, parts.section), play_title: m.play_title, genre:m.genre, play_id:m.play_id, act:m.act, chapter:parts.chapter, chapter_label:m.chapter_label || `Chapter ${parts.chapter}`, section:parts.section, scene:m.scene, total_words:totalWords, ngram_count:ngramCount, scene_id: m.scene_id, act_label: m.act_label, scene_label: m.scene_label };
           });
         });
       } else if (granVal === 'act') {
@@ -1252,7 +1268,22 @@
           if (!play) continue;
           ensureRow(k, () => {
             const ngramCount = getRowNgramCount(total_words);
-            return { id: `${play.abbr}.${actNum}`, location:getChapterLocation(play, actNum), play_title: play.title, genre:play.genre, play_id:pid, act:actNum, act_label:`Ῥαψῳδία ${['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω'][actNum - 1] || actNum}`, total_words, ngram_count:ngramCount };
+            const sample = chunks.find(m => m.play_id === pid && m.act === actNum);
+            return { id: `${play.abbr}.${actNum}`, location:getChapterLocation(play, actNum), play_title: play.title, genre:play.genre, play_id:pid, act:actNum, act_label:(sample && sample.act_label) || `Book ${actNum}`, total_words, ngram_count:ngramCount };
+          });
+        }
+      } else if (granVal === 'chapter') {
+        for (const [k, total_words] of chapterTotals.entries()) {
+          const [pidStr, actNumStr, chapterStr] = k.split(':');
+          const pid = parseInt(pidStr, 10);
+          const actNum = parseInt(actNumStr, 10);
+          const chapter = parseInt(chapterStr, 10);
+          const play = playsById.get(pid);
+          if (!play) continue;
+          ensureRow(k, () => {
+            const ngramCount = getRowNgramCount(total_words);
+            const sample = chunks.find(m => m.play_id === pid && m.act === actNum && (m.chapter || Math.floor((m.scene || 0) / 1000)) === chapter);
+            return { id: `${play.abbr}.${actNum}.${chapter}`, location:`${getChapterLocation(play, actNum)}.${padLocationPart(chapter)}`, play_title: play.title, genre:play.genre, play_id:pid, act:actNum, act_label:(sample && sample.act_label) || `Book ${actNum}`, chapter, chapter_label:`Chapter ${chapter}`, total_words, ngram_count:ngramCount };
           });
         }
       } else if (granVal === 'play') {
@@ -1310,12 +1341,15 @@
         const play = playsById.get(ln.play_id) || { play_id: ln.play_id };
         const row = {
           id: ln.canonical_id,
-          location: ln.location || getVerseLocation(play, ln.act, ln.scene),
+          location: ln.location || getSectionLocation(play, ln.act, ln.chapter || Math.floor((ln.scene || 0) / 1000), ln.section || ((ln.scene || 0) % 1000)),
           play_id: ln.play_id,
           play_title: play.title || '',
           act: ln.act,
+          chapter: ln.chapter || Math.floor((ln.scene || 0) / 1000),
+          section: ln.section || ((ln.scene || 0) % 1000),
           scene: ln.scene,
           act_label: ln.act_label,
+          chapter_label: ln.chapter_label || `Chapter ${ln.chapter || Math.floor((ln.scene || 0) / 1000)}`,
           scene_label: ln.scene_label,
           line_num: ln.line_num,
           speaker: ln.speaker || '',
@@ -1343,7 +1377,7 @@
             row[`${termKeys[idx]}_count`] = c;
           }
         });
-        if (hasTerm) {
+        if (hasTerm || !hasTerms) {
           row.line_highlight_regex = (matchedNgrams.length === 0 || matchedNgrams.length > 60)
             ? null
             : buildHighlightRegexFromNgrams(matchedNgrams);
@@ -1355,16 +1389,15 @@
         { key: 'location', label: 'Location', defaultDir: 'asc', type: 'text' },
         { key: 'play_title', label: 'Work', defaultDir: 'asc', type: 'text' },
         { key: 'act_label', label: 'Book', defaultDir: 'asc', type: 'text' },
-        { key: 'scene', label: 'Passage', type: 'number' }
+        { key: 'chapter', label: 'Chapter', type: 'number', defaultDir: 'asc' },
+        { key: 'section', label: 'Section', type: 'number', defaultDir: 'asc' }
       ];
       const termCols = buildTermColumns();
       baseCols.push(...termCols);
       baseCols.push({ key: 'line', label: 'Passage', type: 'text' });
       setHeaders(baseCols);
       if (!applyPreferredTermSort(termCols, preferredSortTermIndex)) {
-        const defaultSortKey = termCols[0]?.key || 'location';
-        const defaultSortDir = termCols.length ? 'desc' : 'asc';
-        ensureSegmentsSortForColumns(segmentsColumnDefs, defaultSortKey, defaultSortDir);
+        ensureSegmentsSortForColumns(segmentsColumnDefs, 'location', 'asc');
       }
       return finalizeRows();
     }
@@ -1374,7 +1407,8 @@
         {key:'location', label:'Location', defaultDir:'asc', type:'text'},
         {key:'play_title', label:'Work', defaultDir:'asc', type:'text'},
         {key:'act_label', label:'Book', defaultDir:'asc', type:'text'},
-        {key:'scene', label:'Line', type:'number'},
+        {key:'chapter', label:'Chapter', type:'number', defaultDir:'asc'},
+        {key:'section', label:'Section', type:'number', defaultDir:'asc'},
         {key:'ngram_count', label: getBaseCountLabel(), type:'number'}
       ];
       activeTerms.forEach((term, termIdx) => {
@@ -1385,7 +1419,8 @@
             const totalWords = m.total_words || 0;
             const ngramCount = getRowNgramCount(totalWords);
             const playMeta = playsById.get(m.play_id) || { play_id: m.play_id, abbr: m.play_abbr, location: m.location };
-            return { id: m.canonical_id, location: m.location || getVerseLocation(playMeta, m.act, m.scene), play_title: m.play_title, genre:m.genre, play_id:m.play_id, act:m.act, act_label:m.act_label, scene:m.scene, total_words:totalWords, ngram_count:ngramCount, scene_id };
+            const parts = getSectionParts(m);
+            return { id: m.canonical_id, location: m.location || getSectionLocation(playMeta, m.act, parts.chapter, parts.section), play_title: m.play_title, genre:m.genre, play_id:m.play_id, act:m.act, act_label:m.act_label, chapter:parts.chapter, chapter_label:m.chapter_label || `Chapter ${parts.chapter}`, section:parts.section, scene:m.scene, total_words:totalWords, ngram_count:ngramCount, scene_id };
           });
           const d = denomFor(normalizeTermN(term.n) || 1,'scene',m);
           row[`${termKeys[termIdx]}_count`] = count;
@@ -1395,9 +1430,50 @@
       const termCols = buildTermColumns();
       setHeaders([...baseCols, ...termCols]);
       if (!applyPreferredTermSort(termCols, preferredSortTermIndex)) {
-        const defaultSortKey = termCols[0]?.key || 'location';
-        const defaultSortDir = termCols.length ? 'desc' : 'asc';
-        ensureSegmentsSortForColumns(segmentsColumnDefs, defaultSortKey, defaultSortDir);
+        ensureSegmentsSortForColumns(segmentsColumnDefs, 'location', 'asc');
+      }
+      return finalizeRows();
+    }
+
+    if (granVal==='chapter'){
+      const baseCols = [
+        {key:'location', label:'Location', defaultDir:'asc', type:'text'},
+        {key:'play_title', label:'Work', defaultDir:'asc', type:'text'},
+        {key:'act_label', label:'Book', defaultDir:'asc', type:'text'},
+        {key:'chapter', label:'Chapter', type:'number', defaultDir:'asc'},
+        {key:'ngram_count', label: getBaseCountLabel(), type:'number'}
+      ];
+      activeTerms.forEach((term, termIdx) => {
+        const postings = getPostingsForTerm(termIdx);
+        const countsByChapter = new Map();
+        for (const [scene_id,c] of postings){
+          const m = chunkById.get(scene_id); if (!m) continue;
+          const parts = getSectionParts(m);
+          const k = `${m.play_id}:${m.act}:${parts.chapter}`;
+          countsByChapter.set(k, (countsByChapter.get(k)||0) + c);
+        }
+        for (const [k,count] of countsByChapter.entries()){
+          const [pidStr, actNumStr, chapterStr] = k.split(':');
+          const pid = parseInt(pidStr, 10);
+          const actNum = parseInt(actNumStr, 10);
+          const chapter = parseInt(chapterStr, 10);
+          const play = playsById.get(pid);
+          if (!play) continue;
+          const row = ensureRow(k, () => {
+            const total_words = chapterTotals.get(k) || 0;
+            const ngramCount = getRowNgramCount(total_words);
+            const sample = chunks.find(m => m.play_id === pid && m.act === actNum && getSectionParts(m).chapter === chapter);
+            return { id: `${play.abbr}.${actNum}.${chapter}`, location:`${getChapterLocation(play, actNum)}.${padLocationPart(chapter)}`, play_title: play.title, genre:play.genre, play_id:pid, act:actNum, act_label:(sample && sample.act_label) || `Book ${actNum}`, chapter, chapter_label:`Chapter ${chapter}`, total_words, ngram_count:ngramCount };
+          });
+          const d = denomFor(normalizeTermN(term.n) || 1,'chapter',{play_id:pid,act:actNum,chapter});
+          row[`${termKeys[termIdx]}_count`] = count;
+          row[`${termKeys[termIdx]}_pct`] = d ? count/d : 0;
+        }
+      });
+      const termCols = buildTermColumns();
+      setHeaders([...baseCols, ...termCols]);
+      if (!applyPreferredTermSort(termCols, preferredSortTermIndex)) {
+        ensureSegmentsSortForColumns(segmentsColumnDefs, 'location', 'asc');
       }
       return finalizeRows();
     }
@@ -1426,7 +1502,8 @@
           const row = ensureRow(k, () => {
             const total_words = actTotals.get(k) || 0;
             const ngramCount = getRowNgramCount(total_words);
-            return { id: `${play.abbr}.${actNum}`, location:getChapterLocation(play, actNum), play_title: play.title, genre:play.genre, play_id:pid, act:actNum, act_label:`Ῥαψῳδία ${['α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ','ν','ξ','ο','π','ρ','σ','τ','υ','φ','χ','ψ','ω'][actNum - 1] || actNum}`, total_words, ngram_count:ngramCount };
+            const sample = chunks.find(m => m.play_id === pid && m.act === actNum);
+            return { id: `${play.abbr}.${actNum}`, location:getChapterLocation(play, actNum), play_title: play.title, genre:play.genre, play_id:pid, act:actNum, act_label:(sample && sample.act_label) || `Book ${actNum}`, total_words, ngram_count:ngramCount };
           });
           const d = denomFor(normalizeTermN(term.n) || 1,'act',{play_id:pid,act:actNum});
           row[`${termKeys[termIdx]}_count`] = count;
@@ -1436,9 +1513,7 @@
       const termCols = buildTermColumns();
       setHeaders([...baseCols, ...termCols]);
       if (!applyPreferredTermSort(termCols, preferredSortTermIndex)) {
-        const defaultSortKey = termCols[0]?.key || 'location';
-        const defaultSortDir = termCols.length ? 'desc' : 'asc';
-        ensureSegmentsSortForColumns(segmentsColumnDefs, defaultSortKey, defaultSortDir);
+        ensureSegmentsSortForColumns(segmentsColumnDefs, 'location', 'asc');
       }
       return finalizeRows();
     }
@@ -1883,7 +1958,7 @@
 
   // initial state for contexts tab (only if no deep link state applied)
   if (!appliedDeepLinkState) {
-    gran.value = 'play';
+    gran.value = 'act';
     doSearch();
   }
 
