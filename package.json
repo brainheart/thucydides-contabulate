@@ -1,0 +1,11 @@
+{
+  "name": "thucydides-contabulate",
+  "private": true,
+  "description": "Static Thucydides contabulate app for the History of the Peloponnesian War in Ancient Greek.",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.0"
+  }
+}
