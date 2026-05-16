@@ -17,6 +17,7 @@
   ]);
 
   let sceneToPlayId, playShapeById, chunkById, playsById, tokens, tokens2, tokens3, escapeHTML, characterNameFiltersByPlay;
+  let tfIdfDocCountTotal = null;
   const setElementHidden = window.setElementHidden || ((el, hidden) => {
     if (!el || !el.classList) return;
     el.classList.toggle('is-hidden', !!hidden);
@@ -26,7 +27,7 @@
   const playDetailState = {
     playId: null,
     currentN: 1,
-    sortKey: 'count',
+    sortKey: 'tfidf',
     sortDir: 'desc',
     excludeCharacterNames: true,
     threshold: 0,
@@ -41,6 +42,23 @@
 
   function getDocCountTotal() {
     return playsById && typeof playsById.size === 'number' ? playsById.size : 1;
+  }
+
+  function getTfIdfDocCountTotal() {
+    if (getDocCountTotal() > 1) return getDocCountTotal();
+    if (tfIdfDocCountTotal != null) return tfIdfDocCountTotal;
+    const docIds = new Set();
+    for (const chunk of (chunkById && chunkById.values ? chunkById.values() : [])) {
+      if (chunk && chunk.play_id != null && chunk.act != null) docIds.add(`${chunk.play_id}:book:${chunk.act}`);
+    }
+    tfIdfDocCountTotal = docIds.size || 1;
+    return tfIdfDocCountTotal;
+  }
+
+  function getTfIdfDocId(sceneId, pid) {
+    if (getDocCountTotal() > 1) return pid;
+    const chunk = chunkById.get(sceneId) || {};
+    return chunk.act != null ? `${pid}:book:${chunk.act}` : pid;
   }
 
   function isPlayDetailCell(granVal, key, row) {
@@ -437,7 +455,7 @@
       tabBtns.forEach(btn => btn.classList.toggle('active', Number(btn.dataset.n) === n));
       playDetailState.threshold = 0;
     playDetailState.currentPage = 1;
-      playDetailState.sortKey = 'count';
+      playDetailState.sortKey = 'tfidf';
       playDetailState.sortDir = 'desc';
       updateSliderUi();
       renderRows();
@@ -450,10 +468,6 @@
     slider.addEventListener('input', () => {
       playDetailState.threshold = Number(slider.value) || 0;
       playDetailState.currentPage = 1;
-      if (playDetailState.threshold === 0) {
-        playDetailState.sortKey = 'count';
-        playDetailState.sortDir = 'desc';
-      }
       sliderValue.textContent = playDetailState.threshold.toFixed(4);
       renderRows();
     });
@@ -472,7 +486,7 @@
       th.style.cursor = 'pointer';
       const key = th.dataset.key || '';
       if (key === 'tfidf') {
-        th.title = 'TF-IDF = term frequency in this work × inverse document frequency across all works. IDF = ln(N / df), where N is the number of works and df is the number of works containing the term. Higher means more distinctive to this work. Click to sort.';
+        th.title = 'TF-IDF = term frequency in this work × inverse document frequency across all works. For single-work corpora, books are used as the comparison documents. IDF = ln(N / df), where N is the number of documents and df is the number of documents containing the term. Higher means more distinctive. Click to sort.';
         th.setAttribute('aria-label', 'TF-IDF score. Hover for explanation. Click to sort.');
       } else {
         th.title = 'Click to sort';
@@ -565,7 +579,7 @@
 
         const pid = sceneToPlayId.get(sceneId) ?? (chunkById.get(sceneId) || {}).play_id;
         if (pid == null) continue;
-        playsSeen.add(pid);
+        playsSeen.add(getTfIdfDocId(sceneId, pid));
         if (pid === playId) tf += count;
       }
 
@@ -573,7 +587,7 @@
       const df = playsSeen.size;
       if (df <= 0) continue;
 
-      const idf = Math.log(getDocCountTotal() / df);
+      const idf = Math.log(getTfIdfDocCountTotal() / df);
       const tfidf = tf * idf;
       if (tfidf > maxTfIdf) maxTfIdf = tfidf;
       rows.push({ ngram, count: tf, tfidf, containsCharacterName: ngramContainsCharacterName(ngram, playId) });
@@ -629,7 +643,7 @@
     const modal = ensurePlayDetailModal();
     playDetailState.playId = playId;
     playDetailState.currentN = 1;
-    playDetailState.sortKey = 'count';
+    playDetailState.sortKey = 'tfidf';
     playDetailState.sortDir = 'desc';
     playDetailState.excludeCharacterNames = true;
     playDetailState.threshold = 0;

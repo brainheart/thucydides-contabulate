@@ -33,3 +33,13 @@ test('segment view shows segment text without a search term', async ({ page }) =
   await expect(page.locator('#results thead')).toContainText('Segment');
   await expect(page.locator('#results tbody tr').first()).toContainText('Θουκυδίδης Ἀθηναῖος');
 });
+
+test('work detail computes nonzero TF-IDF scores for single-work corpus', async ({ page }) => {
+  await page.goto('/docs/');
+  await page.waitForFunction(() => window.__contabulateReady === true);
+
+  await page.locator('.play-detail-link').first().click();
+  await expect(page.locator('.play-detail-modal')).toBeVisible();
+  await expect(page.locator('.play-detail-loading')).toBeHidden({ timeout: 20000 });
+  await expect(page.locator('.play-detail-modal table tbody tr').first().locator('td').nth(3)).not.toHaveText('0.0000');
+});
