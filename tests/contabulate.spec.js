@@ -11,7 +11,7 @@ test('Thucydides contabulate defaults to books sorted by location', async ({ pag
   await expect(page.locator('#results tbody tr').first()).toContainText('Βιβλίον α');
 });
 
-test('chapter granularity sits between book and passage', async ({ page }) => {
+test('chapter granularity sits between book and segment', async ({ page }) => {
   await page.goto('/docs/');
   await page.waitForFunction(() => window.__contabulateReady === true);
 
@@ -24,12 +24,12 @@ test('chapter granularity sits between book and passage', async ({ page }) => {
   await expect(page.locator('#results thead')).toContainText('πόλεμον');
 });
 
-test('passage view shows passage text without a search term', async ({ page }) => {
+test('segment view shows segment text without a search term', async ({ page }) => {
   await page.goto('/docs/');
   await page.waitForFunction(() => window.__contabulateReady === true);
 
   await page.locator('#gran').selectOption('line');
   await expect(page.locator('#results thead')).toContainText('Section');
-  await expect(page.locator('#results thead')).toContainText('Passage');
+  await expect(page.locator('#results thead')).toContainText('Segment');
   await expect(page.locator('#results tbody tr').first()).toContainText('Θουκυδίδης Ἀθηναῖος');
 });

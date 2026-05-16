@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Search Thucydides’ History of the Peloponnesian War in Ancient Greek by word, phrase, or regex across books, sections, and passages. Built from Perseus Digital Library TEI XML.">
+  <meta name="description" content="Search Thucydides’ History of the Peloponnesian War in Ancient Greek by word, phrase, or regex across books, sections, and segments. Built from Perseus Digital Library TEI XML.">
   <meta name="author" content="Reinhard Engels">
   <meta property="og:title" content="Contabulate: Thucydides — Greek Tabular Search">
-  <meta property="og:description" content="Search Thucydides’ History of the Peloponnesian War in Ancient Greek by word, phrase, or regex across books, sections, and passages. Built from Perseus Digital Library TEI XML.">
+  <meta property="og:description" content="Search Thucydides’ History of the Peloponnesian War in Ancient Greek by word, phrase, or regex across books, sections, and segments. Built from Perseus Digital Library TEI XML.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://thucydides.contabulate.org/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%238b1538' d='M53 8c-12 2-21 11-25 22l-6 17c-1 3-4 5-7 6l-4 2 2-4c1-3 3-6 6-7l17-6C47 34 56 25 58 13l1-6-6 1z'/%3E%3Cpath fill='%238b1538' d='M21 43l-6 6 2 2 6-6z'/%3E%3Cpath fill='%238b1538' d='M31 22l11 11 2-2-11-11z'/%3E%3C/svg%3E">
@@ -25,7 +25,7 @@
 
   <div class="tabs is-hidden">
     <button class="tab-btn active" data-tab="segments">Rows are Contexts</button>
-    <button class="tab-btn" data-tab="lines">Rows are Passages</button>
+    <button class="tab-btn" data-tab="lines">Rows are Segments</button>
   </div>
 
   <div class="tab-content" id="segmentsTab">
@@ -42,7 +42,7 @@
           <option value="play">Work</option>
           <option value="act" selected>Book</option>
           <option value="chapter">Chapter</option>
-          <option value="line">Passage</option>
+          <option value="line">Segment</option>
         </select>
         <span class="label-strong">matching</span>
         <select id="matchMode" class="control-select">
@@ -66,7 +66,7 @@
       <summary class="sr"><strong>Options</strong></summary>
       <div class="options-row">
         <label><input type="checkbox" class="color-scale-toggle" checked> Color scale numeric columns</label>
-        <label><input type="checkbox" class="highlight-toggle" checked> Highlight matching passages</label>
+        <label><input type="checkbox" class="highlight-toggle" checked> Highlight matching segments</label>
         <label><input type="checkbox" id="showZeroRows"> Show zero-hit rows</label>
         <button id="downloadSegmentsCsv" class="download-btn" type="button">Download CSV</button>
         <div class="color-scale-options">
@@ -123,7 +123,7 @@
   <div class="tab-content is-hidden" id="linesTab">
     <div class="controls">
       <div class="controls-row">
-        <span class="label-strong">Show passages with</span>
+        <span class="label-strong">Show segments with</span>
         <select id="linesNgramMode" class="control-select">
           <option value="1" selected>single word</option>
           <option value="2">bigram</option>
@@ -142,7 +142,7 @@
       <summary class="sr"><strong>Options</strong></summary>
       <div class="options-row">
         <label><input type="checkbox" class="color-scale-toggle" checked> Color scale numeric columns</label>
-        <label><input type="checkbox" class="highlight-toggle" checked> Highlight matching passages</label>
+        <label><input type="checkbox" class="highlight-toggle" checked> Highlight matching segments</label>
         <button id="downloadLinesCsv" class="download-btn" type="button">Download CSV</button>
         <div class="color-scale-options">
           <label>Palette:
@@ -694,7 +694,7 @@
     setLoadingState(true, 'Loading paragraph text...');
     allLines = await loadJSON('lines/all_lines.json');
   } catch(e) {
-    console.warn('Passage data not available:', e);
+    console.warn('Segment data not available:', e);
   } finally {
     // FIX-loading-early-dismiss: clear overlay once data settles,
     // so a downstream init throw does not leave the spinner frozen.
@@ -1317,7 +1317,7 @@
     if (granVal === 'line') {
       if (!Array.isArray(allLines) || allLines.length === 0) {
         theadRow.innerHTML = '';
-        tbody.innerHTML = '<tr><td class="muted">Passage data not available.</td></tr>';
+        tbody.innerHTML = '<tr><td class="muted">Segment data not available.</td></tr>';
         return null;
       }
       const lineMatchers = [];
@@ -1394,7 +1394,7 @@
       ];
       const termCols = buildTermColumns();
       baseCols.push(...termCols);
-      baseCols.push({ key: 'line', label: 'Passage', type: 'text' });
+      baseCols.push({ key: 'line', label: 'Segment', type: 'text' });
       setHeaders(baseCols);
       if (!applyPreferredTermSort(termCols, preferredSortTermIndex)) {
         ensureSegmentsSortForColumns(segmentsColumnDefs, 'location', 'asc');
