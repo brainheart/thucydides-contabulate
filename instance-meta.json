@@ -1,0 +1,12 @@
+{
+  "id": "thucydides",
+  "emoji": "⛵",
+  "title": "Thucydides",
+  "tagline": "Thucydides Tabular Explorer",
+  "language": "Ancient Greek",
+  "url": "https://thucydides.contabulate.org/",
+  "source": "https://github.com/brainheart/thucydides-contabulate",
+  "text_label": "works",
+  "segment_label": "segments",
+  "sample_queries": []
+}
