@@ -4,17 +4,20 @@
   "emoji": "⛵",
   "title": "Thucydides",
   "tagline": "Thucydides Tabular Explorer",
-  "language": "Ancient Greek",
+  "language": "Greek",
+  "created": "2026-05-15",
   "url": "https://thucydides.contabulate.org/",
   "source": "https://github.com/brainheart/thucydides-contabulate",
   "sample_queries": [],
-  "updated": "2026-07-08",
+  "updated": "2026-07-10",
   "stats": {
     "texts": 1,
     "text_label": "works",
     "segments": 3587,
     "segment_label": "segments",
     "words": 150392,
-    "distinct_words": 22548
+    "distinct_words": 22548,
+    "commentaries": 0,
+    "comments": 0
   }
 }
